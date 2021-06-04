@@ -6,8 +6,8 @@ rm(list=ls())
 # change these things
 
 # define some types and names
-bnti.type = 'FTICR' # cDNA or gDNA or FTICR
-bnti.name = 'FTICR_bNTI_Weighted_All-Trans' # cDNA_bNTI_weighted_rare_27227 or gDNA_bNTI_weighted_rare_15106 or FTICR_bNTI_Weighted_All-Trans or FTICR_bNTI_Characteristics or FTICR_bNTI_All-Trans
+bnti.type = 'cDNA' # cDNA or gDNA
+bnti.name = 'cDNA_bNTI_weighted_rare_27227' # cDNA_bNTI_weighted_rare_27227 or gDNA_bNTI_weighted_rare_15106
 
 #############
 
@@ -26,28 +26,29 @@ fac.to.char.fun = function(matrix.in) {
 }
 
 ### read in metadata 
-meta = fac.to.char.fun(read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/SampleIDs/Metadata.csv"))
+meta = fac.to.char.fun(read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/Metadata_4Jun2021.csv"))
 str(meta)
 head(meta)
 
 ### read in rate data
-rate.in = read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/Analyses/05_CPI/Stegen_EC_DO_Rates.csv")
+rate.in = read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/01_Rates/Stegen_EC_DO_Rates.csv")
 head(rate.in)
 
-cpi.in = read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/Analyses/05_CPI/ECA_Exp_CPIs.csv")
-cpi.in$cycles = paste(cpi.in$cycles,"cycles",sep=""); cpi.in$cycles[which(cpi.in$cycles == '1cycles')] = '1cycle' # changing names to match the other data
-cpi.in$num.cycles = as.numeric(gsub("cycle.*","",cpi.in$cycles))
+cpi.in = read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/01_Rates/Stegen_EC_CPIs.csv")
+cpi.in$cycles = paste(cpi.in$cycles,"cycles",sep=""); cpi.in$cycles[which(cpi.in$cycles == '1cycles')] = '1 cycle' # changing names to match the other data
+colnames(cpi.in)[grep(pattern = 'days.dry',colnames(cpi.in))] = "Daysdry"
+colnames(cpi.in)[grep(pattern = 'cycles',colnames(cpi.in))] = "Cycles"
 cpi.in
 
 ### read in the control point contribution data
-cpc.in = read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/Analyses/05_CPI/ECA_Exp_Rates.CPCs.csv")
+cpc.in = read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/01_Rates/Stegen_EC_Rates.CPCs.csv")
 cpc.in$cycles = paste(cpc.in$cycles,"cycles",sep=""); cpc.in$cycles[which(cpc.in$cycles == '1cycles')] = '1cycle' # changing names to match the other data
 cpc.in$sample.id = gsub("_.*","",cpc.in$unique.id)
 length(unique(cpc.in$sample.id)) - nrow(cpc.in) # should be 0
 cpc.in$FTICR = NA
 for (i in 1:nrow(cpc.in)) {
   
-  cpc.in$FTICR[i] = meta$FTICR[which(meta$Sample.ID == cpc.in$sample.id[i])]
+  cpc.in$FTICR[i] = meta$SampleID_FTICR[which(meta$Sample.ID == cpc.in$sample.id[i])]
   
 }
 head(cpc.in)
@@ -129,7 +130,7 @@ if (bnti.type %in% c('cDNA','gDNA')) {
   plot(cpc.out$four.pt.CPC.percent.dev.treat ~ cpc.out$median.bnti.treat,pch=19,col=cpc.out$pt.color)
   
   pdf(paste(path.out,"Rate.vs.bNTI.Treat_",bnti.name,".pdf",sep=""))
-    mod.to.plot = log(cpc.out$four.pt.CPC+ I(min(cpc.out$four.pt.CPC[cpc.out$four.pt.CPC > 0])/2)) ~ (abs(cpc.out$median.bnti.treat))
+    mod.to.plot = log(cpc.out$four.pt.rate + I(min(cpc.out$four.pt.rate[cpc.out$four.pt.rate > 0])/2)) ~ (abs(cpc.out$median.bnti.treat))
     mod = summary(lm(mod.to.plot)); mod
     plot(mod.to.plot,ylab="Ln(Rate of O2 Consumption)",xlab=paste('Abs(',bnti.name,")",sep=""),cex.lab=1.5,pch=19,cex=1.3)
     abline(mod,lwd=2,col=2)
