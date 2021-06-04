@@ -1,18 +1,18 @@
-# This is for making box plots of bNTI from amplicon data and from FTICR data, across treatments
-
+# run the script once for gDNA and once again for cDNA
 rm(list=ls())
 
 ############
 # change these things
 
 # define some types and names
-bnti.type = 'cDNA' # cDNA or gDNA
-bnti.name = 'cDNA_bNTI_weighted_rare_27227' # cDNA_bNTI_weighted_rare_27227 or gDNA_bNTI_weighted_rare_15106
+bnti.type = 'Sample_ID_OTU_Table_gDNA' # Sample_ID_OTU_Table_cDNA or Sample_ID_OTU_Table_gDNA
+if (bnti.type == 'Sample_ID_OTU_Table_gDNA') {bnti.name = 'gDNA_bNTI_weighted_rare_15106'} # cDNA_bNTI_weighted_rare_27227 or gDNA_bNTI_weighted_rare_15106
+if (bnti.type == 'Sample_ID_OTU_Table_cDNA') {bnti.name = 'cDNA_bNTI_weighted_rare_27227'} # cDNA_bNTI_weighted_rare_27227 or gDNA_bNTI_weighted_rare_15106
 
 #############
 
 # path for output
-path.out = "//pnl/projects/PREMIS/Experimental Mesocosms/Analyses/04_bNTI.Across.Treatments/"
+path.out = "//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/07_Analyses/"
 
 ###### load functions
 
@@ -32,168 +32,129 @@ head(meta)
 
 ### read in rate data
 rate.in = read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/01_Rates/Stegen_EC_DO_Rates.csv")
+rate.in$four.pt.rate[rate.in$four.pt.rate < 0] = 0
 head(rate.in)
 
 cpi.in = read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/01_Rates/Stegen_EC_CPIs.csv")
-cpi.in$cycles = paste(cpi.in$cycles,"cycles",sep=""); cpi.in$cycles[which(cpi.in$cycles == '1cycles')] = '1 cycle' # changing names to match the other data
-colnames(cpi.in)[grep(pattern = 'days.dry',colnames(cpi.in))] = "Daysdry"
-colnames(cpi.in)[grep(pattern = 'cycles',colnames(cpi.in))] = "Cycles"
 cpi.in
 
-### read in the control point contribution data
-cpc.in = read.csv("//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/01_Rates/Stegen_EC_Rates.CPCs.csv")
-cpc.in$cycles = paste(cpc.in$cycles,"cycles",sep=""); cpc.in$cycles[which(cpc.in$cycles == '1cycles')] = '1cycle' # changing names to match the other data
-cpc.in$sample.id = gsub("_.*","",cpc.in$unique.id)
-length(unique(cpc.in$sample.id)) - nrow(cpc.in) # should be 0
-cpc.in$FTICR = NA
-for (i in 1:nrow(cpc.in)) {
-  
-  cpc.in$FTICR[i] = meta$SampleID_FTICR[which(meta$Sample.ID == cpc.in$sample.id[i])]
-  
-}
-head(cpc.in)
+### merge metadata with rates and CPI
+meta.rates = merge(meta,rate.in,by="unique.id",all=T)
+meta.rates = merge(meta.rates,cpi.in,by="Cycles",all=T)
+dim(meta.rates)
+rm('meta')
 
-pdf(paste(path.out,"Rate.Box.CPI.Across.Treats_.pdf",sep=""),width = 8,height = 7)
+pdf(paste(path.out,"Fig4a_Rate.Box.CPI.Across.Dry.Days.pdf",sep=""),width = 8,height = 7)
   par(pty="s")
-  boxplot(cpc.in$four.pt.rate ~ cpc.in$cycles,xlab="Experimental Treatment",ylab="Rate of O2 Consumption",cex.lab=1.5,cex.axis=1); abline(h=c(2,-2),col=2,lwd=2)
+  boxplot(meta.rates$four.pt.rate ~ meta.rates$Daysdry,xlab="Cumulative Days Dry",ylab=expression(Respiration ~ Rate ~ (mg ~ O[2] ~ L^-1 ~ min^-1)),cex.lab=2,cex.axis=1.5); abline(h=c(2,-2),col=2,lwd=2)
   par(new=T,pty="s")
-  plot(cpi.in$bgc.above.med ~ cpi.in$num.cycles,ylim=c(0.5,max(cpi.in$bgc.above.med)),pch=19,typ="b",axes=F,ylab="",xlab="",col=4) # the order of cpi.in must have increasing cycles
-  axis(side = 4,at = seq(0.5,0.9,by=0.1))
-  mtext("Control Point Influence", side = 4, line = 3,cex = 1.5)
+  plot(unique(meta.rates$CPI[order(meta.rates$Daysdry)]) ~ c(1:6),xlim=c(0.5,6.5),ylim=c(0.5,max(meta.rates$CPI)),pch=19,typ="b",axes=F,ylab="",xlab="",col=rgb(red = 34,green = 151,blue = 230,maxColorValue = 255),cex=1.5) # the order of cpi.in must have increasing cycles
+  axis(side = 4,at = seq(0.5,0.9,by=0.1),cex.axis=1.5)
+  mtext("Control Point Influence", side = 4, line = 3,cex = 2)
+  mtext(text = ' a',side = 1,line = -1.25,cex=2,adj = 0)
 dev.off()
 
-cpc.out = cpc.in
-
 # paths to bNTI output
-icr.bnti.path.in = "//pnl/projects/PREMIS/Experimental Mesocosms/Analyses/03_FTICR/FTICR_bNTI/"
-amplicon.bnti.path.in = "//pnl/projects/PREMIS/Experimental Mesocosms/Analyses/02_bNTI/"
+amplicon.bnti.path.in = "//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/02_bNTIcalculations/"
 
 # read in bNTI data
 
-if (bnti.type == 'FTICR') {
-  
-  bnti.in = read.csv(paste(icr.bnti.path.in,"ECA_Exp_",bnti.name,".csv",sep=""),row.names = 1)
-  dim(bnti.in)
-  bnti.in[1:5,1:5]
-  
-}
-
-if (bnti.type %in% c('cDNA','gDNA')) {
+if (bnti.type %in% c('Sample_ID_OTU_Table_cDNA','Sample_ID_OTU_Table_gDNA')) {
   
   bnti.in = read.csv(paste(amplicon.bnti.path.in,bnti.name,".csv",sep=""),row.names = 1)
   dim(bnti.in)
   bnti.in[1:5,1:5]
   
-  for (i in 1:nrow(bnti.in)) {
-    
-    print(rownames(bnti.in)[i])
-    rownames(bnti.in)[i] = meta$FTICR[which( meta[,bnti.type] == rownames(bnti.in)[i]  )]
-    colnames(bnti.in)[i] = meta$FTICR[which( meta[,bnti.type] == colnames(bnti.in)[i]  )]
-    print(rownames(bnti.in)[i])
-    
-  }
+  rownames(bnti.in) = gsub(pattern = 'cycles',replacement = " cycles",rownames(bnti.in))
+  colnames(bnti.in) = gsub(pattern = 'cycles',replacement = " cycles",colnames(bnti.in))
+  rownames(bnti.in) = gsub(pattern = '1 cycles',replacement = "1 cycle",rownames(bnti.in))
+  colnames(bnti.in) = gsub(pattern = '1 cycles',replacement = "1 cycle",colnames(bnti.in))
   
 }
   
-  # cpc analyses
-  cpc.out$median.bnti.full = NA
-  cpc.out$median.bnti.treat = NA
-  cpc.out$pt.color = NA
+  # bNTI analyses
+  meta.rates$median.bnti.treat = NA
+  meta.rates$pt.color = NA
+  meta.rates$pt.color[which(meta.rates$Cumulative.Treatment == 'Inundated')] = '#8073ac'
+  meta.rates$pt.color[which(meta.rates$Cumulative.Treatment == 'Dry')] = '#e08214'
   
-  # put in codes for colors based on treatments, for plotting
-  col.temp = 1
-  for (i in unique(cpc.out$cycles)) {
+  meta.rates$SampleID_bNTI = gsub(pattern = 'cycles',replacement = " cycles",meta.rates$SampleID_bNTI)
+  meta.rates$SampleID_bNTI = gsub(pattern = '1 cycles',replacement = "1 cycle",meta.rates$SampleID_bNTI)
+  
+  for (i in 1:nrow(meta.rates)) {
     
-    cpc.out$pt.color[grep(i,cpc.out$cycles)] = col.temp
-    col.temp = col.temp + 1
-  
-  }
-  head(cpc.out)
-  
-  bnti.for.cpc = bnti.in[which(rownames(bnti.in) %in% cpc.out$FTICR),which(rownames(bnti.in) %in% cpc.out$FTICR)]
-  bnti.for.cpc[1:5,1:5]
-  rownames(bnti.for.cpc)
-  
-  cpc.out = cpc.out[which(cpc.out$FTICR %in% rownames(bnti.for.cpc)),]
-  dim(cpc.out)
-  
-  for (i in 1:nrow(cpc.out)) {
-    
-    cpc.out$median.bnti.full[i] = median(c(as.vector(bnti.for.cpc[,cpc.out$FTICR[i]]),as.vector(t(bnti.for.cpc[cpc.out$FTICR[i],]))),na.rm = T)
-    cpc.out$median.bnti.treat[i] = median(c(as.vector(bnti.for.cpc[grep(cpc.out$cycles[i],rownames(bnti.for.cpc)),cpc.out$FTICR[i]]),as.vector(t(bnti.for.cpc[cpc.out$FTICR[i],grep(cpc.out$cycles[i],colnames(bnti.for.cpc))]))),na.rm = T)
+    bnti.temp.vals = c(as.vector(bnti.in[grep(meta.rates$Cycles[i],rownames(bnti.in)),meta.rates$SampleID_bNTI[i]]),as.vector(t(bnti.in[meta.rates$SampleID_bNTI[i],grep(meta.rates$Cycles[i],rownames(bnti.in))])))
+    meta.rates$median.bnti.treat[i] = median(bnti.temp.vals,na.rm = T)
+    print(c(i,meta.rates$SampleID_bNTI[i],length(bnti.temp.vals)))
+    rm('bnti.temp.vals')
     
   }
-  head(cpc.out)
+  head(meta.rates)
   
-  plot(cpc.out$four.pt.CPC ~ cpc.out$median.bnti.full,pch=19,col=cpc.out$pt.color)
-  plot(cpc.out$four.pt.CPC.within.treat ~ cpc.out$median.bnti.treat,pch=19,col=cpc.out$pt.color)
-  plot(cpc.out$four.pt.CPC.percent.dev.treat ~ cpc.out$median.bnti.treat,pch=19,col=cpc.out$pt.color)
-  
-  pdf(paste(path.out,"Rate.vs.bNTI.Treat_",bnti.name,".pdf",sep=""))
-    mod.to.plot = log(cpc.out$four.pt.rate + I(min(cpc.out$four.pt.rate[cpc.out$four.pt.rate > 0])/2)) ~ (abs(cpc.out$median.bnti.treat))
+  pdf(paste(path.out,"Fig3_LnRate.vs.AbsbNTI_",bnti.name,".pdf",sep=""))
+    par(pty="s")  
+    if (bnti.name == "cDNA_bNTI_weighted_rare_27227" ) { x.lab.temp = expression(paste("Putatively Active Community |",beta,"NTI|"))}  
+    if (bnti.name == "gDNA_bNTI_weighted_rare_15106" ) { x.lab.temp = expression(paste("Whole Community |",beta,"NTI|"))}  
+    mod.to.plot = log(meta.rates$four.pt.rate + I(min(meta.rates$four.pt.rate[meta.rates$four.pt.rate > 0],na.rm = T)/2)) ~ abs(meta.rates$median.bnti.treat)
     mod = summary(lm(mod.to.plot)); mod
-    plot(mod.to.plot,ylab="Ln(Rate of O2 Consumption)",xlab=paste('Abs(',bnti.name,")",sep=""),cex.lab=1.5,pch=19,cex=1.3)
-    abline(mod,lwd=2,col=2)
-    mtext(text = paste("R2 = ",round(mod$r.squared,digits = 2)," ",sep=""),side=3,line = -1.2,las=1,adj=1)
-    mtext(text = paste("p = ",round(mod$coefficients[2,4],digits = 6)," ",sep=""),side=3,line = -2,las=1,adj=1)
+    plot(mod.to.plot,ylab=expression(Ln(Respiration ~ Rate ~ (mg ~ O[2] ~ L^-1 ~ min^-1))),xlab=x.lab.temp,cex.lab=2,cex.axis=1.5,pch=19,cex=1.5,col=meta.rates$pt.color)
+    if (round(mod$coefficients[2,4],digits = 6) < 0.05) { abline(mod,lwd=2,col=2) }
+    rsq.temp = round(mod$r.squared,digits = 2)
+    mtext(text = substitute(paste("R"^2," = ", rsq ," ",sep=""),list(rsq=rsq.temp)),side=3,line = -1.2,las=1,adj=1)
+    if (mod$coefficients[2,4] > 0.001) {    mtext(text = paste("p = ",round(mod$coefficients[2,4],digits = 2)," ",sep=""),side=3,line = -2,las=1,adj=1)}
+    if (mod$coefficients[2,4] <= 0.001) {    mtext(text = paste("p = ",round(mod$coefficients[2,4],digits = 6)," ",sep=""),side=3,line = -2,las=1,adj=1)} 
+    if (bnti.name == "cDNA_bNTI_weighted_rare_27227" ) {mtext(text = ' b',side = 1,line = -1.25,cex=2,adj = 0)}
+    if (bnti.name == "gDNA_bNTI_weighted_rare_15106" ) {mtext(text = ' a',side = 1,line = -1.25,cex=2,adj = 0)}
   dev.off()
   
+
   # box plots
   bnti.for.box = numeric()
   
-  for (i in c('0cycles','1cycles','2cycles','3cycles','4cycles','5cycles')) {
+  for (i in c('0 cycles','1 cycle','2 cycles','3 cycles','4 cycles','5 cycles')) {
     
     bnti.temp = bnti.in[grep(pattern = i,x = rownames(bnti.in)),grep(pattern = i,x = colnames(bnti.in))]
     print(c(i,identical(rownames(bnti.temp),colnames(bnti.temp))))
     print(dim(bnti.temp))
     print(rownames(bnti.temp))
     
-    bnti.for.box = rbind(bnti.for.box,cbind(as.vector(as.dist(bnti.temp)),i))
+    dry.days.temp = unique(meta.rates$Daysdry[grep(pattern = i,x = meta.rates$Cycles)])
     
-    rm('bnti.temp')
+    bnti.for.box = rbind(bnti.for.box,cbind(as.vector(as.dist(bnti.temp)),i,dry.days.temp))
+    
+    rm('bnti.temp','dry.days.temp')
     
     
   }
   
   bnti.for.box = fac.to.char.fun(as.data.frame(bnti.for.box))
-  colnames(bnti.for.box) = c('bNTI','Treatment')
+  colnames(bnti.for.box) = c('bNTI','Cycles',"Daysdry")
   bnti.for.box$bNTI = as.numeric(bnti.for.box$bNTI)
+  bnti.for.box$Daysdry = as.numeric(bnti.for.box$Daysdry)
   str(bnti.for.box)
   head(bnti.for.box)
   
-  pdf(paste(path.out,"Box.Across.Treats_",bnti.name,".pdf",sep=""),width = 8,height = 7)
+  if (bnti.name == "cDNA_bNTI_weighted_rare_27227" ) {
+      pdf(paste(path.out,"Fig4b_bNTI.Box.vs.Daysdry_",bnti.name,".pdf",sep=""),width = 8,height = 7)
+      y.lab.temp = expression(paste("Putatively Active Community |",beta,"NTI|"))
+    
+    }
+  if (bnti.name == "gDNA_bNTI_weighted_rare_15106" ) {
+      pdf(paste(path.out,"FigS3_bNTI.Box.vs.Daysdry_",bnti.name,".pdf",sep=""),width = 8,height = 7)
+      y.lab.temp = expression(paste("Whole Community |",beta,"NTI|"))
+    
+    }
+  
     par(pty="s")
-    boxplot(bnti.for.box$bNTI ~ bnti.for.box$Treatment,xlab="Experimental Treatment",ylab=bnti.name,cex.lab=1.5,cex.axis=1); abline(h=c(2,-2),col=2,lwd=2)
+    boxplot(bnti.for.box$bNTI ~ bnti.for.box$Daysdry,xlab="Cumulative Days Dry",ylab=y.lab.temp,cex.lab=2,cex.axis=1.5); abline(h=c(2,-2),col=2,lwd=2)
     par(new=T,pty="s")
-    plot(cpi.in$bgc.above.med ~ cpi.in$num.cycles,ylim=c(0.5,max(cpi.in$bgc.above.med)),pch=19,typ="b",axes=F,ylab="",xlab="",col=4) # the order of cpi.in must have increasing cycles
-    axis(side = 4,at = seq(0.5,0.9,by=0.1))
-    mtext("Control Point Influence", side = 4, line = 3,cex = 1.5)
+    plot(unique(meta.rates$CPI[order(meta.rates$Daysdry)]) ~ c(1:6),xlim=c(0.5,6.5),ylim=c(0.5,max(meta.rates$CPI)),pch=19,typ="b",axes=F,ylab="",xlab="",col=rgb(red = 34,green = 151,blue = 230,maxColorValue = 255),cex=1.5) # the order of cpi.in must have increasing cycles
+    axis(side = 4,at = seq(0.5,0.9,by=0.1),cex.axis=1.5)
+    mtext("Control Point Influence", side = 4, line = 3,cex = 2)
+    
+    if (bnti.name == "cDNA_bNTI_weighted_rare_27227" ) {mtext(text = ' b',side = 1,line = -1.25,cex=2,adj = 0)}
+  
   dev.off()
-  
-  mean.bnti = (tapply(bnti.for.box$bNTI,INDEX = bnti.for.box$Treatment,FUN = 'mean')); mean.bnti = as.data.frame(mean.bnti)
-  median.bnti = (tapply(bnti.for.box$bNTI,INDEX = bnti.for.box$Treatment,FUN = 'median')); median.bnti = as.data.frame(median.bnti)
-  var.bnti = (tapply(bnti.for.box$bNTI,INDEX = bnti.for.box$Treatment,FUN = 'var')); var.bnti = as.data.frame(var.bnti)
-  
-  treat.metrics = merge(mean.bnti,median.bnti,by=0)
-  treat.metrics = merge(treat.metrics,var.bnti,by.x='Row.names',by.y=0)
-  treat.metrics = merge(treat.metrics,cpi.in,by.x='Row.names',by.y='cycles')
-  treat.metrics
-  
-  mod.to.plot = treat.metrics$bgc.above.med ~ treat.metrics$median.bnti
-  xlab = paste("Median ",bnti.name,sep="")
-  ylab = "Control Point Influence"
-  mod = summary(lm(mod.to.plot)); mod
-  
-  pdf(paste(path.out,"CPI.v.bNTI_",bnti.name,".pdf",sep=""))
-    par(pty="s")  
-    plot(mod.to.plot,xlab=xlab,ylab=ylab,cex.lab=1.5,cex=1.5,pch=19)
-    abline(mod,lwd=2,col=2)
-    mtext(text = paste("R2 = ",round(mod$r.squared,digits = 2)," ",sep=""),side=3,line = -1.2,las=1,adj=1)
-    mtext(text = paste("p = ",round(mod$coefficients[2,4],digits = 2)," ",sep=""),side=3,line = -2,las=1,adj=1)
-  dev.off()
-
-
-
 
 
 
