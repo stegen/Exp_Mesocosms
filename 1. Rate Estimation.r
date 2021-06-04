@@ -20,20 +20,12 @@ fac.to.char.fun = function(matrix.in) {
   return(matrix.in)
   
 }
-path.in = "//Data Package/01_Rates/"
-path.out = "//Data Package/01_Rates/"
+path.in = "//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/01_Rates/"
+path.out = "//pnl/projects/PREMIS/Experimental Mesocosms/Data Package/01_Rates/"
 
 dat = fac.to.char.fun(read.csv(file = paste(path.in,"Stegen_EC_Raw_DO.csv",sep="")))
+dat$unique.id = paste(dat$Sample.ID,dat$Cycles,sep="_")
 head(dat)
-
-dat$cycles = dat$Sample
-dat$cycles = gsub(pattern = " cycles",replacement = "",x = dat$cycles)
-dat$cycles = as.numeric(gsub(pattern = c(" cycle"),replacement = "",x = dat$cycles))
-
-dat$unique.id = paste(dat$ID,dat$Sample,sep="_")
-
-head(dat)
-str(dat)
 
 id.and.sample = unique(dat$unique.id)
 
@@ -42,11 +34,11 @@ dat.rates = numeric()
 for (i in id.and.sample) {
   
   four.pt.mod = mod.out.fun(max.time = 90,min.time = 0,dat = dat,unique.id.use = i)
-  dat.rates = rbind(dat.rates,c(i,unique(dat$cycles[dat$unique.id == i]),four.pt.mod))
+  dat.rates = rbind(dat.rates,c(i,four.pt.mod))
   
 }
 
-colnames(dat.rates) = c("unique.id","cycles","four.pt.rate","four.pt.rsq")
+colnames(dat.rates) = c("unique.id","four.pt.rate","four.pt.rsq")
 dat.rates = as.data.frame(dat.rates)
 dat.rates = fac.to.char.fun(dat.rates)
 dat.rates[2:ncol(dat.rates)] = lapply(dat.rates[2:ncol(dat.rates)],as.numeric)
@@ -57,18 +49,18 @@ head(dat.rates)
 write.csv(dat.rates, file = paste(path.out,"Stegen_EC_DO_Rates.csv",sep=""),row.names = F,quote = F)
 ##
 
-var.levels = 0:5 # number of cycles of experimental wet/dry
+var.levels = c('0 cycles','1 cycle','2 cycles','3 cycles','4 cycles','5 cycles') # number of cycles of experimental wet/dry
 
 cont.point.comp = numeric()
 
 for (i in var.levels) {
   
-  temp.rates = dat.rates$four.pt.rate[which(dat.rates$cycles == i)]
+  temp.rates = dat.rates$four.pt.rate[grep(pattern = i,x = dat.rates$unique.id)]
   cont.point.comp = rbind(cont.point.comp,c(i,sum(temp.rates[which(temp.rates > median(temp.rates))]) / sum(temp.rates)))
   
 }
 
-colnames(cont.point.comp) = c("cycles","bgc.above.med")
+colnames(cont.point.comp) = c("Cycles","CPI")
 cont.point.comp = as.data.frame(cont.point.comp)
 cont.point.comp
 
